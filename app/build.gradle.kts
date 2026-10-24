@@ -6,9 +6,6 @@ android {
     namespace = "com.sampmobile.fork"
     compileSdk = 34
 
-    // NDK r27 is used for the native client. AGP downloads it automatically
-    // when it is missing from the SDK; you can also point ANDROID_NDK_HOME
-    // at an existing install.
     ndkVersion = "27.0.12077973"
 
     defaultConfig {
@@ -17,12 +14,13 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+
+        // 32-bit only (armeabi-v7a): the engine libs we ship are 32-bit.
+        ndk {
+            abiFilters += listOf("armeabi-v7a")
+        }
     }
 
-    // The SAMP native client (the C++ sources at the repository root) is
-    // built with the existing ndk-build files. app/src/main/jni/Android.mk
-    // and Application.mk delegate to the shared ones at the repo root, so
-    // there is a single source of truth for the ABI list and flags.
     externalNativeBuild {
         ndkBuild {
             path = file("src/main/jni/Android.mk")
