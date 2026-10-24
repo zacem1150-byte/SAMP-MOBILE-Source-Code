@@ -50,9 +50,12 @@ import java.util.zip.ZipFile;
  * data_version, data_size, data_sentinel.
  */
 public final class GameDataManager {
-    private static final String APP_CONFIG = "https://raw.githubusercontent.com/Kallzzxa/hehehaha/refs/heads/main/app.json";
-    private static final String FALLBACK_DATA_PAGE = "https://www.mediafire.com/file/rhkel93l3frrgtn/files.zip/file";
-    private static final String FALLBACK_DATA_VERSION = "1";
+    // Direct link to the data package (GitHub release asset). Change DATA_VERSION
+    // whenever you upload a new uksamp.zip so users re-download it.
+    private static final String DATA_URL = "https://github.com/zacem1150-byte/launcher/releases/download/v1/uksamp.zip";
+    private static final String DATA_VERSION = "1";
+    private static final long   DATA_SIZE = 0;      // bytes; 0 = do not check size
+    private static final String DATA_SENTINEL = "SAMP/main.scm"; // must exist after extract; "" = skip
 
     private static final String PREFS = "samp_game_data";
     private static final String KEY_DATA_VERSION = "data_version";
@@ -76,17 +79,14 @@ public final class GameDataManager {
     private GameDataManager() {}
 
     public static void checkAndPrepare(Activity activity, ReadyCallback callback) {
-        showLoading(activity, "Checking game data", "Contacting the update server...");
+        showLoading(activity, "Checking game data", "Please wait...");
         IO.execute(() -> {
             try {
-                JSONObject config = getJson(APP_CONFIG);
                 DataInfo info = new DataInfo();
-                info.url = config.optString("data_url", FALLBACK_DATA_PAGE);
-                if (info.url.isEmpty()) info.url = FALLBACK_DATA_PAGE;
-                info.version = config.optString("data_version", FALLBACK_DATA_VERSION);
-                if (info.version.isEmpty()) info.version = FALLBACK_DATA_VERSION;
-                info.size = config.optLong("data_size", 0);
-                info.sentinel = config.optString("data_sentinel", "SAMP/SAMP.ide");
+                info.url = DATA_URL;
+                info.version = DATA_VERSION;
+                info.size = DATA_SIZE;
+                info.sentinel = DATA_SENTINEL;
 
                 String installed = activity.getSharedPreferences(PREFS, Activity.MODE_PRIVATE)
                         .getString(KEY_DATA_VERSION, "");
@@ -243,6 +243,7 @@ public final class GameDataManager {
 
                 File root = a.getExternalFilesDir(null);
                 if (root == null) throw new Exception("Storage unavailable.");
+                ensureGuiFont(root);
                 if (info.sentinel != null && !info.sentinel.isEmpty()
                         && !new File(root, info.sentinel).exists())
                     throw new Exception("Data incomplete after extraction (sentinel missing).");
@@ -273,6 +274,28 @@ public final class GameDataManager {
                 });
             }
         });
+    }
+
+    /**
+     * The native GUI loads SAMP/fonts/Arial.ttf (default in settings). The data
+     * package ships its fonts in fonts/ instead, so copy one over if needed.
+     */
+    private static void ensureGuiFont(File root) {
+        try {
+            File dst = new File(root, "SAMP/fonts/Arial.ttf");
+            if (dst.isFile() && dst.length() > 0) return;
+            File src = new File(root, "fonts/arial_bold.ttf");
+            if (!src.isFile()) return;
+            File dir = dst.getParentFile();
+            if (dir != null && !dir.exists()) dir.mkdirs();
+            try (InputStream in = new BufferedInputStream(new java.io.FileInputStream(src));
+                 OutputStream out = new BufferedOutputStream(new FileOutputStream(dst))) {
+                byte[] b = new byte[64 * 1024]; int n;
+                while ((n = in.read(b)) != -1) out.write(b, 0, n);
+            }
+        } catch (Exception e) {
+            android.util.Log.e("GameDataManager", "ensureGuiFont failed", e);
+        }
     }
 
     private static void downloadWithProgress(String url, File out, long expectedSize, ProgressUi ui) throws Exception {
